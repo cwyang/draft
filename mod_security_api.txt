@@ -1,0 +1,53 @@
+/* module init*/
+
+typedef struct waf_instance waf_instance_t;
+typedef struct waf_transaction waf_transaction_t;
+typedef struct waf_intervention waf_intervention_t;
+typedef void (*log_callback_t)(void *log, const void *data);
+
+/* basic init */
+waf_instance_t *waf_init();
+void waf_cleanup(waf_instance_t *);
+void waf_set_log_cb(waf_instance_t *, log_callback_t);
+
+int waf_rules_reload();      /* should be atomic */
+void waf_rules_dump();
+
+
+/* session works*/
+
+/* waf_process_request/response이후에 결과를 확인. nonzero면 차단대상이고 action data는 intervention에 지정 */
+/* ret: 0 --> do nothing
+   1. log intervention.log
+   2. if intervention.url != NULL then redirect to url with intervention.status
+ */
+int waf_intervention(waf_transaction_t *, waf_intervention_t *);
+
+void waf_transcation_cleanup(waf_transaction_t *);
+waf_transaction_t *waf_new_transaction_with_id(waf_instance_t *, ...);
+waf_transaction_t *waf_new_transaction(waf_instance_t *, ...);
+void waf_process_logging(waf_transaction_t *); /* prepare logging line and emit it to log_callback */
+
+/* rewrite handler - request header를 scan, rewrite */
+
+int waf_process_connection(waf_transaction_t *,                 /* 5-tuple정보를 집어넣는다 */
+                           const char *saddr, int sport,
+                           const char *daddr, int dport);
+void waf_process_uri(waf_transaction_t *,                       /* http정보를 집어넣는다 */
+                     const char *uri, const char *method, const char *http_version);
+void waf_add_n_request_header(waf_transaction_t *,              /* http header를 집어넣는다 */
+                              const unsigned char *key, int keylen,
+                              const unsigned char *value, int valuelen);
+/* 5-tuple, http er, http header에 의거 action (deny/rewrite등) */
+int waf_process_request_header(waf_transaction_t *);
+
+/* preaccess - request body를 scan */
+void waf_append_request_body(waf_transaction_t *, void *, int);
+void waf_process_request_body(waf_transaction_t *);
+
+/* header handler -- response header를 scan */
+void waf_add_n_response_header(waf_transaction_t *,              /* http header를 집어넣는다 */
+                              const unsigned char *key, int keylen,
+                              const unsigned char *value, int valuelen);
+/* resp status, ver, http header에 의거 action (deny/rewrite등) */
+int waf_process_response_header(waf_transaction_t *, int status, char *resp_ver);
